@@ -1,0 +1,122 @@
+---
+title: "Stat 430 Project"
+author: "Maxx Wayne"
+---
+
+# Introduction
+
+My Project will be using Principal Component Analysis to analyze NBA statistics from 1980-2017. I retrieved the data set from a csv file from kaggle: "https://www.kaggle.com/drgilermo/nba-players-stats/version/2#Seasons_Stats.csv". I chose 1980 as the first year, rather than choosing all years in the original data set, because the three point line was established in 1980, therefore the statistics from the earlier seasons may skew the data. I want to study which statistics have the biggest impact on the component scores, to determine who has had the best indivdual NBA season from 1980-2017. The data set contains every statistic kept by the NBA, but I will only be analyzing those that are % based because I believe those show a players true impact on the game. For example, I will not be including total rebounds or assists, but instead I will be using offensive rebounding %, defensive rebounding %, and assist %, which gives a better representation of a players impact. I will be using the following statistics: true shooting % (which accounts for field goals and free throws), offensive rebounding %, defensive rebounding %, assist %, steal %, block %, usage % (a metric that determines what percentage of plays a player alters the game in some way), box plus/minus (the change in score of the game while the player is on the court), 3 point field goal %, 2 point field goal %, free throw %, and points per minute, which is a statistic I created. I then normalized all of the statistics so they had equal variation and means, so one statistic does not carry too much weight. I will also be using Player Efficency Rating (PER) which is the most common basketball metric to determine a players impact on the game. I will see how PER relates to each component and the total scores, to see if the components are a better predictor of PER than the statistics are.
+
+---
+
+# Methods
+
+I will start by selecting only the observations starting in 1980. Then I will subset the qualitative statistcs (Year, Player Name, Position, Age, and Team) I will be keeping into one data set named qualitative_stats. I will create a new variable called PPM which stands for Points per Minute, by Dividing Points (PTS) by Minutes (MP). I will be subsetting the 12 quantitative statistics I am keeping into a data set named quantitative_stats. There are some blank and N/A observations that I will be omitting from these two data sets. I will then normalize all 12 quantiative statistics to ensure one does not skew the data and bind them into a new data set qualitative_stats_norm. I will inspect the correlation matrix and extract the eigenvalues to better understand each statistic. I will also inspect the correlation between PER and each component to see how they are related. By Using the summary function I will see which components account for the most variation and I will only keep the amount of components that make for 90% of the variation. Once I know which components account for 90% of the variation, I will observe the loadings of each component, which will tell me what each component is made up of. I will then analyze what indivdual player seasons, using the dplyr package, to see which indivudal seasons were the best by certain components and total scores. I will also plot Standarized PER vs each component, total scores, and some combinations of components to determine correlations and get a better understanding of which components are positive or negative. I will divide half of the data into a training set randomly. Then, I will then use lm() to see if the components are a better predictor for Standarized PER than the standarized statistics. I will use the summary function to observe the regression coefficients and residual standard errors. These are the methods I will be using.
+
+---
+
+# Analysis
+
+### **Arranging the Data Sets**
+```{r}
+basketball=read.csv('C:/Users/maxxb/Documents/430/basketball.csv',header=TRUE)
+bball=na.omit(basketball[c(5728:24692),c(2:7,9:21,23:26,28:53),])
+qualitative_stats=bball[,c(1:5)]
+PPM=bball$PTS/bball$MP
+quantitative_stats=cbind(bball[,c(9,12:13,15:17,19,26,33,36,40)],PPM)
+```
+
+### **Standardizing the Data**
+```{r}
+TS._norm=(quantitative_stats$TS.-mean(quantitative_stats$TS.))/sd(quantitative_stats$TS.)
+ORB._norm=(quantitative_stats$ORB.-mean(quantitative_stats$ORB.))/sd(quantitative_stats$ORB.)
+DRB._norm=(quantitative_stats$DRB.-mean(quantitative_stats$DRB.))/sd(quantitative_stats$DRB.)
+AST._norm=(quantitative_stats$AST.-mean(quantitative_stats$AST.))/sd(quantitative_stats$AST.)
+STL._norm=(quantitative_stats$STL.-mean(quantitative_stats$STL.))/sd(quantitative_stats$STL.)
+BLK._norm=(quantitative_stats$BLK.-mean(quantitative_stats$BLK.))/sd(quantitative_stats$BLK.)
+USG._norm=(quantitative_stats$USG.-mean(quantitative_stats$USG.))/sd(quantitative_stats$USG.)
+BPM_norm=(quantitative_stats$BPM-mean(quantitative_stats$BPM))/sd(quantitative_stats$BPM)
+X3P._norm=(quantitative_stats$X3P.-mean(quantitative_stats$X3P.))/sd(quantitative_stats$X3P.)
+X2P._norm=(quantitative_stats$X2P.-mean(quantitative_stats$X2P.))/sd(quantitative_stats$X2P.)
+FT._norm=(quantitative_stats$FT.-mean(quantitative_stats$FT.))/sd(quantitative_stats$FT.)
+PPM_norm=(quantitative_stats$PPM-mean(quantitative_stats$PPM))/sd(quantitative_stats$PPM)
+
+PER_norm=(bball$PER-mean(bball$PER))/sd(bball$PER)
+
+quantitative_stats_norm=cbind(TS._norm,ORB._norm,DRB._norm,AST._norm,STL._norm,BLK._norm,USG._norm,BPM_norm,X3P._norm,X2P._norm,FT._norm,PPM_norm)
+```
+
+### **Principal Components**
+
+```{r}
+library(stats)
+round(cor(quantitative_stats_norm),4)
+eigen(cor(quantitative_stats_norm))$values
+round(cor(cbind(quantitative_stats_norm,PER_norm)),4)[13,]
+PC=princomp(quantitative_stats_norm,scores=TRUE,cor=TRUE)
+summary(PC)
+round(PC$loadings[,1:7],4)
+```
+
+### **Visualization Analysis**
+
+```{r warning=FALSE}
+library(dplyr)
+scores=data.frame(PC$scores[,1:7])
+scores$total=scores$Comp.1+scores$Comp.2+scores$Comp.3+scores$Comp.4+scores$Comp.5+scores$Comp.6+scores$Comp.7
+all=cbind(qualitative_stats,scores)
+
+all %>% select(Year,Player,Pos,Age,Tm,Comp.1,total) %>% top_n(20,Comp.1)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.2,total) %>% top_n(20,Comp.2)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.1,Comp.2,total) %>% top_n(20,Comp.1+Comp.2)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.4,total) %>% top_n(20,Comp.4)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.3,Comp.4,total) %>% top_n(20,Comp.3+Comp.4)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.5,total) %>% top_n(20,Comp.5)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.6,total) %>% top_n(20,Comp.6)
+all %>% select(Year,Player,Pos,Age,Tm,Comp.5,Comp.6,total) %>% top_n(20,Comp.5+Comp.6)
+all %>% select(Year,Player,Pos,Age,Tm,total) %>% top_n(20,total)
+all %>% mutate(best=Comp.1+Comp.2+.5*Comp.3) %>% select(Year,Player,Pos,Age,Tm,best) %>% top_n(20,best)
+
+plot(scores$Comp.1,PER_norm,xlab='Component 1',ylab='Standarized PER')
+plot(scores$Comp.2,PER_norm,xlab='Component 2',ylab='Standardized PER')
+plot(scores$Comp.3,PER_norm,xlab='Component 3',ylab='Standardized PER')
+plot(scores$Comp.4,PER_norm,xlab='Component 4',ylab='Standardized PER')
+plot(scores$Comp.5,PER_norm,xlab='Component 5',ylab='Standardized PER')
+plot(scores$Comp.6,PER_norm,xlab='Component 6',ylab='Standardized PER')
+plot(scores$Comp.7,PER_norm,xlab='Component 7',ylab='Standardized PER')
+plot(scores$Comp.1+scores$Comp.2,PER_norm,xlab='Component 1+Component 2',ylab='Standardized PER')
+plot(scores$Comp.3+scores$Comp.4,PER_norm,xlab='Component 3+Component 4',ylab='Standardize PER')
+plot(scores$Comp.5+scores$Comp.6,PER_norm,xlab='Component 5+Component 6',ylab='Standardized PER')
+plot(scores$total,PER_norm,xlab='Total Scores',ylab='Standardized PER')
+plot(scores$Comp.1+scores$Comp.2+.5*scores$Comp.3,PER_norm,xlab='Component 1+Component 2+0.5*Component 3',ylab='Standardized PER')
+
+train=sample(c(1:nrow(all)),nrow(all)/2,replace=FALSE)
+test=c(1:nrow(all))[-train]
+standard_stats=lm(PER_norm[train]~quantitative_stats_norm[train,]+0)
+summary(standard_stats)
+
+p1=lm(PER_norm[train]~all$Comp.1[train]+0)
+p02=lm(PER_norm[train]~all$Comp.2[train]+0)
+p2=lm(PER_norm[train]~all$Comp.1[train]+all$Comp.2[train]+0)
+p3=lm(PER_norm[train]~all$Comp.1[train]+all$Comp.2[train]+all$Comp.3[train]+0)
+p4=lm(PER_norm[train]~all$Comp.1[train]+all$Comp.2[train]+all$Comp.3[train]+all$Comp.4[train]+0)
+p5=lm(PER_norm[train]~all$Comp.1[train]+all$Comp.2[train]+all$Comp.3[train]+all$Comp.4[train]+all$Comp.5[train]+0)
+p6=lm(PER_norm[train]~all$Comp.1[train]+all$Comp.2[train]+all$Comp.3[train]+all$Comp.4[train]+all$Comp.5[train]+all$Comp.6[train]+0)
+p7=lm(PER_norm[train]~all$Comp.1[train]+all$Comp.2[train]+all$Comp.3[train]+all$Comp.4[train]+all$Comp.5[train]+all$Comp.6[train]+all$Comp.7[train]+0)
+
+summary(p1)
+summary(p02)
+summary(p2)
+summary(p3)
+summary(p4)
+summary(p5)
+summary(p6)
+summary(p7)
+```
+
+---
+
+# Summary
+
+The results of the principal component analysis were quite interesting. By observing the loadings, I determined that the first component, which accounts for about 25% of the variation, is made up of mostly rebounding and blocks, with not much of an impact on points. This means the taller players, Centers and Power Forwards will most likely have the best Component 1 scores. This was true as I observed DeAndre Jordan, whom I know to a modern defensive big man, to have some of the highest component 1 scores. Of the top 20 component 1 scores, DeAndre Jordan also had the highest total scores, which means he has had some of the best seasons for pure defense in the NBA while also contributing in other areas. Although, observing the plot of Stnadardized PER vs Component 1, there does not seem to be much of a correlation. This means that pure rebounding and blocks does not have much of an impact on PER. Component 2, which also accounts to close to 25% of the variation, seems to be the best scorers, which can be argued as the most important role in the game of basketball. Observing who had the best 20 Component 2 scores, there was a lot of recognizable names such as Michael Jordan (who had 4 straight seasons to make the list), Lebron James(who had 3 seasons make the list), and Kevin Durant (who had 2 seasons make the list). Observing the plot of Standarized PER vs Component 2, there is a strong positive correlation between the two. This means that Component 2 may be the strongest determinant of an above average season for a player. Now I wanted to see how Component 1 and Component 2 added together would look like. By looking at the top 20 seasons for adding these two components, the player seasons returned seemed to be the best offensive big men. For example, Shaquille O'Neal has 4 seasons on the list, David Robinson has 3, Dwight Howard has 4, and DeAndre Jordan has 3. This emphasizes how DeAndre Jordan has had some of the most underrated seasons in NBA history. Observing the plot of Standarized PER vs Component 1+Component 2, we see that there is a positive correlation between the two. This is important because Components 2 and Component 3 slightly seem to be the only components with a positive correlation with Standarized PER. By observing the loadings, I could determine that components 3 and 4 seems to represents high shooting accuracy but not scoring many points. This means that players that have a high score for these two are players that were good shooters but did not necessarily get many opportunities from their team. The players with the best seasons in this group are not well known players, but they have high scores. Although, Component 4 has the strongest negative correlation with Standarized PER out of any component. This means players with a high component 4 score actually have a negative impact on their team. This is proven through generally low overrall scores for the players with the best component 4 scores. These can be interperted as some of the most underrated scorers in NBA history. Component 5 is made up of horrible 3 point shooting, while also below average blocks and defensive rebounds. This means players with the highest Component 5 scores are the worst shooters that are small. This appears to be true as most the top 20 Component 5 scores are guards. Component 6 are slighlty accurate shooters from the field, but poor free throw shooters. Free throws are an extremely important part of Basketball so it can be assumed that is bad to have a high component 6 score. The players on the top 20 Component 6 list are players that have had subpar careers, which is what I expected. Component 7 is mostly made up of high rate of steals but low rates of blocks and assists, so I am determining this component as having a mostly neutral affect. By adding Components 5 and 6, it should return the worst indivdual seasons in NBA history. This can be confirmed through the negative correlation between Standarized PER and Components 5 and 6. Observing the plot of Standarized PER vs total score, there is a generally positive correlation with some outliers. I believe these outliers are because of high component 4, 5, and 6 scores. Therefore if I want to find the best overrall indivudal seasons I will use the formula Component 1+Component 2+0.5*Component 3. There is a strong positive correlation between this formula and Standarized PER which means my formula complys with the general NBA understanding of a "good" season. The players with the best seasons according to this formula are mostly centers, implying they were efficient on the offensive and defensive ends of the game. DeAndre Jordan has 4 of the top 20 and 3 of the top 5 season ever according to this metric, further enforcing the fact that he may be the most underrated player in NBA history. After observing the Regression coefficients for the linear regression of the training set, I found that these principal components are actually not as good of a predictor for the Standarized PER compare to the original standarized statistics because the standarized statistics had mostly positive regression coefficients and a lower residual standard error. This was interesting because it shows that these components show a new way to analyze player performance that the NBA does not currently use.
+
